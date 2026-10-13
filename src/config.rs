@@ -120,7 +120,7 @@ pub const RENDEZVOUS_SERVERS: &[&str] = &[
     "gerardesk3.gerarservicos.com.br",
     "gerardesk4.gerarservicos.com.br",
 ];
-pub const RS_PUB_KEY: &str = "OeVuKk5nlHiXp+APNn0Y3pC1Iwpwn44JGqrQCsWqmBw=";
+pub const RS_PUB_KEY: &str = "9wXyO+MnfP0TxTF2jkb0eZF2Cumj5pTfjQ1DHfCIduk=";
 
 pub const RENDEZVOUS_PORT: i32 = 21116;
 pub const RELAY_PORT: i32 = 21117;

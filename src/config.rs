@@ -114,7 +114,12 @@ const CHARS: &[char] = &[
     'm', 'n', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
 ];
 
-pub const RENDEZVOUS_SERVERS: &[&str] = &["rs-ny.rustdesk.com"];
+pub const RENDEZVOUS_SERVERS: &[&str] = &[
+    "gerardesk.gerarservicos.com.br",
+    "gerardesk2.gerarservicos.com.br",
+    "gerardesk3.gerarservicos.com.br",
+    "gerardesk4.gerarservicos.com.br",
+];
 pub const RS_PUB_KEY: &str = "OeVuKk5nlHiXp+APNn0Y3pC1Iwpwn44JGqrQCsWqmBw=";
 
 pub const RENDEZVOUS_PORT: i32 = 21116;
@@ -911,6 +916,11 @@ impl Config {
         let mut rendezvous_server = EXE_RENDEZVOUS_SERVER.read().unwrap().clone();
         if rendezvous_server.is_empty() {
             rendezvous_server = Self::get_option("custom-rendezvous-server");
+            if let Some((first, _)) = rendezvous_server.split_once(',') {
+                // A comma-separated list may be configured; this peer registers on the
+                // first entry.
+                rendezvous_server = first.trim().to_owned();
+            }
         }
         if rendezvous_server.is_empty() {
             rendezvous_server = PROD_RENDEZVOUS_SERVER.read().unwrap().clone();
@@ -919,10 +929,16 @@ impl Config {
             rendezvous_server = CONFIG2.read().unwrap().rendezvous_server.clone();
         }
         if rendezvous_server.is_empty() {
-            rendezvous_server = Self::get_rendezvous_servers()
-                .drain(..)
-                .next()
-                .unwrap_or_default();
+            // Default list: anchor this peer's registration on one entry, stable per peer
+            // id, so the servers share the load while outgoing connections probe them all.
+            let servers = Self::get_rendezvous_servers();
+            if !servers.is_empty() {
+                let mut sum = 0usize;
+                for b in Self::get_id().bytes() {
+                    sum = sum.wrapping_add(b as usize);
+                }
+                rendezvous_server = servers[sum % servers.len()].to_owned();
+            }
         }
         if !rendezvous_server.contains(':') {
             rendezvous_server = format!("{rendezvous_server}:{RENDEZVOUS_PORT}");
@@ -931,17 +947,21 @@ impl Config {
     }
 
     pub fn get_rendezvous_servers() -> Vec<String> {
-        let s = EXE_RENDEZVOUS_SERVER.read().unwrap().clone();
-        if !s.is_empty() {
-            return vec![s];
+        let mut s = EXE_RENDEZVOUS_SERVER.read().unwrap().clone();
+        if s.is_empty() {
+            s = Self::get_option("custom-rendezvous-server");
         }
-        let s = Self::get_option("custom-rendezvous-server");
-        if !s.is_empty() {
-            return vec![s];
+        if s.is_empty() {
+            s = PROD_RENDEZVOUS_SERVER.read().unwrap().clone();
         }
-        let s = PROD_RENDEZVOUS_SERVER.read().unwrap().clone();
         if !s.is_empty() {
-            return vec![s];
+            // A single entry or a comma-separated list; outgoing connections race every
+            // entry in parallel.
+            return s
+                .split(',')
+                .map(|x| x.trim().to_owned())
+                .filter(|x| !x.is_empty())
+                .collect();
         }
         let serial_obsolute = CONFIG2.read().unwrap().serial > SERIAL;
         if serial_obsolute {
